@@ -1,0 +1,11 @@
+{
+  "name": "setup-db",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {},
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "amazon-qldb-driver-nodejs": "^3.1.0"
+  }
+}

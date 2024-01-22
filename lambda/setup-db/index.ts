@@ -1,64 +1,26 @@
-import * as qldb from 'amazon-qldb-driver-nodejs';
-import * as lambda from 'aws-lambda';
+import { QldbDriver } from 'amazon-qldb-driver-nodejs';
+import { APIGatewayProxyHandler } from 'aws-lambda';
 
-interface Result {
-  readonly PhysicalResourceId?: string;
-  readonly Data?: JSON;
-}
-
-export async function onEvent(
-  event: lambda.CloudFormationCustomResourceEvent,
-  context: lambda.Context
-): Promise<Result> {
-  console.log(`Processing request: `, event);
-
-  const qldbDriver = new qldb.QldbDriver(event.ResourceProperties.LedgerName);
-
-  switch (event.RequestType) {
-    case 'Create':
-      return onCreate(event, qldbDriver);
-    case 'Update':
-      return onUpdate(event, qldbDriver);
-    case 'Delete':
-      return onDelete(event, qldbDriver);
-  }
-}
-
-export async function onCreate(
-  event: lambda.CloudFormationCustomResourceEvent,
-  qldbDriver: qldb.QldbDriver
-): Promise<Result> {
-  const ledgerName = event.ResourceProperties.LedgerName;
-  const customResourceId = event.ResourceProperties.CustomResourceId;
+export const handler: APIGatewayProxyHandler = async (event, context) => {
+  const qldbDriver = new QldbDriver(process.env.LEDGER_NAME ?? '');
 
   const existingTableNames = await qldbDriver.getTableNames();
+  const tablesToCreate = ['balances', 'provisions'].filter(
+    (table) => !existingTableNames.includes(table)
+  );
 
   await qldbDriver.executeLambda(async (txn) =>
     Promise.all(
-      ['balances', 'provisions']
-        .filter((table) => !existingTableNames.includes(table))
-        .map((tableToCreate) => txn.execute('CREATE TABLE ?', tableToCreate))
+      tablesToCreate.map((tableToCreate) =>
+        txn.execute(`CREATE TABLE ${tableToCreate}`)
+      )
     )
   );
 
-  const physicalId = `${customResourceId}-${ledgerName}`;
   return {
-    PhysicalResourceId: physicalId,
+    statusCode: 200,
+    body: JSON.stringify({
+      message: 'success',
+    }),
   };
-}
-
-export async function onUpdate(
-  event: lambda.CloudFormationCustomResourceEvent,
-  qldbDriver: qldb.QldbDriver
-): Promise<Result> {
-  console.log('onUpdate');
-  return {};
-}
-
-export async function onDelete(
-  event: lambda.CloudFormationCustomResourceEvent,
-  qldbDriver: qldb.QldbDriver
-): Promise<Result> {
-  console.log('onDelete');
-  return {};
-}
+};
